@@ -20,12 +20,12 @@ namespace InvoiceScheduler_Consumer
         internal static readonly string GetSchedule = @"SELECT Sales_Order_Id,Invoice_Date,Payment_Date,Periode_Start_Date,Periode_End_Date,sales_order_version,erpsystem,scheduleid as Id FROM [ESPOCRM].[dbo].[GetPendingInvoicesForSchedule] (null)";
         internal static readonly string SaveSyncSchedule = @"INSERT INTO [ESPOCRM].[dbo].[SyncSchedule]([TransactionId],[ScheduleId],[InvoiceId],[salesOrderVersion],[Created]) VALUES (@TransactionId, @ScheduleId,@InvoiceId,@salesOrderVersion, GETDATE())";
         internal static readonly string InformOnSuccess = @"EXECUTE dbo.InformUsersOnSuccess @transactionId = @transactionId";
-        internal static readonly string InformOnFailure = @"EXECUTE dbo.InformUsersOnFailure @title = 'Invoice Creation Error!', @msg = @msg, @transactionId = @transactionId";
+        internal static readonly string InformOnFailure = @"EXECUTE dbo.InformOnFailure @title = 'Invoice Creation Error!', @msg = @msg, @transactionId = @transactionId";
         internal static readonly string GetOrphanedInvoices = @"select id, ErpDraftNumber from [ESPOCRM].[dbo].[ERP_Deleted_Drafts] where Processed = 0";
         internal static readonly string ProcessOrphanedInvoice = @"Update [ESPOCRM].[dbo].[ERP_Deleted_Drafts] set processed = 1 where id = @id";
 
 
 
-        internal static readonly string GetLastRun = @"select top 1 CONVERT(nvarchar(50), DATEADD(MI, (DATEDIFF(MI, SYSDATETIME(), SYSUTCDATETIME())), r.created), 126) from [dbo].[Transfer_Runs] r where r.[system] = @systemid and not exists(select top 1 1 From Transfer_Errors te where te.TransactionId = r.TransactionId) order by Created desc";
+        internal static readonly string GetLastRun = @"select top 1 CONVERT(nvarchar(50), Dateadd(second, -1, DATEADD(MI, (DATEDIFF(MI, SYSDATETIME(), SYSUTCDATETIME())), r.created)), 126) from [dbo].[Transfer_Runs] r where r.[system] = @systemid and not exists(select top 1 1 From Transfer_Errors te where te.TransactionId = r.TransactionId) order by Created desc";
     }
 }

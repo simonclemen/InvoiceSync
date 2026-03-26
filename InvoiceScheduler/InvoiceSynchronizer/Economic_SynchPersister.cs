@@ -301,7 +301,8 @@ namespace InvoiceScheduler_Consumer
 
             var crm_account = data_acentio.Accounts.list.FirstOrDefault(r => r.id == invoice.accountId);
             var economic_account = data_economic.Customers.collection.FirstOrDefault(r => r.customerNumber.ToString() == crm_account.cERPCustomerNo);
-            
+            if (economic_account == null) throw new ArgumentException("Unknown ERP Customer");
+
             if (target.customer == null) target.customer = new Economic.DraftInvoice.Customer();
             target.customer.customerNumber = economic_account.customerNumber;
             

@@ -156,6 +156,7 @@ namespace InvoiceScheduler_Consumer
 
         private async Task<bool> GetInvoicesMatchingState(HttpClient client, CombinedDataSet data, string state)
          {
+            
             var invoices = await GetData<InvoiceResponse, InvoiceResponseData>(client, "Invoice?where[0][type]=equals&where[0][attribute]=status&where[0][value]=" + state + "&where[1][type]=after&where[1][attribute]=modifiedAt&where[1][value]="+LastrunDT+ "&where[2][type]=notEquals&where[2][attribute]=modifiedById&where[2][value]=693c611227539034c");
             
             if (invoices.Success)

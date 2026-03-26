@@ -14,19 +14,19 @@ namespace TripleTexDataTransfer_Consumer_TripleTex.Session
 
     public class ConsumerToken
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     public class EmployeeToken
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     public class Value
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public int version { get; set; }
         public string url { get; set; }
         public ConsumerToken consumerToken { get; set; }
