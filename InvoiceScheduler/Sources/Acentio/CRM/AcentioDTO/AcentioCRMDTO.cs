@@ -451,6 +451,8 @@ namespace InvoiceScheduler_Consumer_AcentioCRM
 
         public string cPDFInvoice { get; set; }
         public IList<CreditNoteItemResponseData> itemList { get; set; }
+
+        public InvoiceResponseData Invoice { get; set; }
     }
     public class CreditNoteItemResponse : GenericResponse<CreditNoteItemResponseData>
     {

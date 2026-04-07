@@ -34,7 +34,7 @@ namespace InvoiceScheduler_Consumer
             var acentiocrm_client = GetAcentioClient();
                         
             var invoices = data_acentio.Invoices.list.Where(r => data_acentio.Accounts.list.Any(a => a.id == r.accountId && (a.cInvoicedFrom??"").ToLower() == key)).ToList();
-            var creditnotes = data_acentio.CreditNotes.list.Where(r => data_acentio.Accounts.list.Any(a => a.id == r.accountId && a.cInvoicedFrom == key)).ToList();
+            var creditnotes = data_acentio.CreditNotes.list.Where(r => data_acentio.Accounts.list.Any(a => a.id == r.accountId && (a.cInvoicedFrom ?? "").ToLower() == key)).ToList();
 
             if (Settings.PersistTripleTexInvoices.Skip) return;
             Settings.PersistTripleTexInvoices.Log.Add(GetLogEntry("Start"));
@@ -46,11 +46,11 @@ namespace InvoiceScheduler_Consumer
         }
         private async Task SaveTripletexBookedInvoices(HttpClient tripletex_client, HttpClient acentiocrm_client, List<Acentio.InvoiceResponseData> invoices, List<CreditNoteResponseData> creditnotes, Acentio.CombinedDataSet data_acentio, Tripletex.CombinedDataSet data_tripletex)        
         {
-            await SaveEconomicBookedInvoice(tripletex_client, acentiocrm_client, invoices, data_acentio, data_tripletex);
+            await SaveTripletexBookedInvoice(tripletex_client, acentiocrm_client, invoices, data_acentio, data_tripletex);
             await SaveTripletexBookedCreditNote(tripletex_client, acentiocrm_client, creditnotes, data_acentio, data_tripletex);
 
         }
-        private async Task SaveEconomicBookedInvoice(HttpClient tripletex_client, HttpClient acentiocrm_client, List<Acentio.InvoiceResponseData> invoices, Acentio.CombinedDataSet data_acentio, Tripletex.CombinedDataSet data_tripletex)
+        private async Task SaveTripletexBookedInvoice(HttpClient tripletex_client, HttpClient acentiocrm_client, List<Acentio.InvoiceResponseData> invoices, Acentio.CombinedDataSet data_acentio, Tripletex.CombinedDataSet data_tripletex)
         {
             Settings.PersistTripleTexInvoices.Log.Add(GetLogEntry("Start - Booked"));
             var tripletex_booked_invoices = invoices.Where(r => (r.status ?? "").ToLower() == "ready for transfer").ToList();
@@ -77,7 +77,56 @@ namespace InvoiceScheduler_Consumer
             }
             Settings.PersistTripleTexInvoices.Log.Add(GetLogEntry("End - Booked"));
         }
+        private async Task<TripletexInvoiceWrapper> TripletexBookedCreditNote(Acentio.CreditNoteResponseData crm_creditnote, long erpInvoiceId, long customerid, string invoiceduedate, string invoicedate, HttpClient tripletex_client, Acentio.CombinedDataSet data_acentio, Tripletex.CombinedDataSet data_tripletex)
+        {
 
+            var url = "invoice?sendToCustomer=true";
+
+            var syncresponse = new Tripletex.Invoice.TripletexInvoiceWrapper();
+            var invoice = new Tripletex.Invoice.InvoiceBooked(customerid, erpInvoiceId, invoiceduedate, invoicedate);
+
+            try
+            {
+                var options = new JsonSerializerOptions { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
+                var json = JsonSerializer.Serialize(invoice, options);
+                StringContent content = new StringContent(json, Encoding.UTF8, "application/json");
+                var response = await tripletex_client.PostAsync(url, content);
+                var jsonResponse = await response.Content.ReadAsStringAsync();
+                var responsedocument = JsonSerializer.Deserialize<Tripletex.Invoice.InvoiceResponseWrapper>(jsonResponse);
+                var id = (responsedocument == null ? "0" : responsedocument.value.id.ToString());
+
+                if (response.IsSuccessStatusCode)
+                {
+                    Settings.PersistTripleTexInvoices.NewIds.Add(new Settings.EntityData(id));
+                    syncresponse.Invoice = responsedocument.value;
+                    syncresponse.Success = true;
+                    syncresponse.Info.Add("Tripletex Booked CreditNote: " + "CreditNote " + id + " successfully synchronized with Tripletex.");
+                    crm_creditnote.cPDFInvoice = responsedocument.value != null ? "https://tripletex.no/v2/invoice/" + responsedocument.value.id + "/pdf" : null;
+                    crm_creditnote.cERPCreditNoteNo = id;
+                    crm_creditnote.status = "Sent";
+
+                    return syncresponse;
+                }
+                else
+                {
+                    syncresponse.Invoice = null;
+                    syncresponse.Success = false;
+                    syncresponse.Info.Add("Tripletex Booked CreditNote: " + "CreditNote " + id + " failed in synchronizaation with Tripletex: " + jsonResponse);
+                    Settings.PersistTripleTexInvoices.Warning.Add(GetLogEntity(id, jsonResponse));
+                }
+            }
+            catch (Exception ex)
+            {
+
+                syncresponse.Order = null;
+                syncresponse.Success = false;
+                syncresponse.Info.Add("Tripletex Booked Invoice: " + "Invoice failed in synchronizaation with Tripletex: " + ex.Message);
+
+                Settings.PersistTripleTexInvoices.Error.Add(GetLogEntity(crm_creditnote.id, ex.Message + " " + ex.StackTrace));
+            }
+
+            return syncresponse;
+        }
         private async Task<TripletexInvoiceWrapper> TripletexBookedInvoice(Acentio.InvoiceResponseData crm_invoice, long erpInvoiceId, long  customerid,string invoiceduedate, string invoicedate, HttpClient tripletex_client, Acentio.CombinedDataSet data_acentio, Tripletex.CombinedDataSet data_tripletex)
         {
 
@@ -154,10 +203,59 @@ namespace InvoiceScheduler_Consumer
                 tripletex_invoice_wrapper.Info.Add("Save CRM Booked Invoice: " + ex.Message);
             }
         }
+        private async Task SaveCRMBookedCreditNote(Tripletex.Invoice.TripletexInvoiceWrapper tripletex_invoice_wrapper, Acentio.CreditNoteResponseData creditnote, HttpClient acentiocrm_client)
+        {
+            var document = "CreditNote";
+            var url = "api/v1/" + document + "/" + creditnote.id;
+
+            StringContent content = new StringContent(JsonSerializer.Serialize(creditnote), Encoding.UTF8, "application/json");
+            try
+            {
+
+                var response = await acentiocrm_client.PutAsync(url, content);
+                if (response.IsSuccessStatusCode)
+                {
+                }
+                else
+                {
+                    var error = response.Headers.FirstOrDefault(r => r.Key == "X-Status-Reason").Value.FirstOrDefault();
+                    Settings.PersistTripleTexInvoices.Warning.Add(GetLogEntity(creditnote.id, error));
+                    tripletex_invoice_wrapper.Info.Add("Save CRM Booked CreditNote: " + error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Settings.PersistTripleTexInvoices.Error.Add(GetLogEntity(creditnote.id, ex.Message + " " + ex.StackTrace));
+                tripletex_invoice_wrapper.Info.Add("Save CRM Booked CreditNote: " + ex.Message);
+            }
+        }
 
         private async Task SaveTripletexBookedCreditNote(HttpClient tripletex_client, HttpClient acentiocrm_client, List<CreditNoteResponseData> creditnotes, Acentio.CombinedDataSet data_acentio, Tripletex.CombinedDataSet data_tripletex)
         {
-            //throw new NotImplementedException();
+            Settings.PersistTripleTexInvoices.Log.Add(GetLogEntry("Start - Booked"));
+            var tripletex_booked_creditnotes = creditnotes.Where(r => (r.status ?? "").ToLower() == "ready for transfer").ToList();
+            foreach (var creditnote in tripletex_booked_creditnotes)
+            {
+                try
+                {
+                    var crm_account = data_acentio.Accounts.list.FirstOrDefault(r => r.id == creditnote.accountId);
+                    var tripletex_account = data_tripletex.Customers.values.FirstOrDefault(r => r.customerNumber.ToString() == crm_account.cERPCustomerNo);
+
+                    var tripletex_response = await TripletexBookedCreditNote(creditnote, Convert.ToInt64(creditnote.cERPDraftCreditNoteNo), tripletex_account.id, creditnote.dateDue, creditnote.dateIssued, tripletex_client, data_acentio, data_tripletex);
+                    if (tripletex_response.Success) await SaveCRMBookedCreditNote(tripletex_response, creditnote, acentiocrm_client);
+                    else await ResetCRMCreditNote(creditnote, tripletex_response.Info, acentiocrm_client);
+
+                    await SaveNotes("CreditNote", creditnote.id, tripletex_response.Info, acentiocrm_client, Settings.PersistTripleTexInvoices.Warning, Settings.PersistTripleTexInvoices.Error);
+
+                }
+                catch (Exception ex)
+                {
+                    var info = new List<string>();
+                    info.Add(ex.Message);
+                    await ResetCRMCreditNote(creditnote, info, acentiocrm_client);
+                }
+            }
+            Settings.PersistTripleTexInvoices.Log.Add(GetLogEntry("End - Booked"));
         }
 
    
@@ -167,8 +265,8 @@ namespace InvoiceScheduler_Consumer
             await HandleNewInvoices(tripletex_client, acentiocrm_client, invoices, data_acentio, data_tripletex);
             await HandleUpdatedInvoices(tripletex_client, acentiocrm_client, invoices, data_acentio, data_tripletex);
       
-            //await HandleNewCreditNotes(tripletex_client, acentiocrm_client, creditnotes, data_acentio, data_tripletex);
-            //await HandleUpdatedCreditNotes(tripletex_client, acentiocrm_client, creditnotes, data_acentio, data_tripletex);
+            await HandleNewCreditNotes(tripletex_client, acentiocrm_client, creditnotes, data_acentio, data_tripletex);
+            await HandleUpdatedCreditNotes(tripletex_client, acentiocrm_client, creditnotes, data_acentio, data_tripletex);
                         
 
         }
@@ -205,6 +303,35 @@ namespace InvoiceScheduler_Consumer
 
             }
         }
+        private async Task HandleUpdatedCreditNotes(HttpClient tripletex_client, HttpClient acentiocrm_client, List<Acentio.CreditNoteResponseData> creditnotes, Acentio.CombinedDataSet data_acentio, Tripletex.CombinedDataSet data_tripletex)
+        {
+            //Get All creditnotes not already synched
+            var updatedcreditnotes = creditnotes.Where(r => !string.IsNullOrEmpty(r.cERPDraftCreditNoteNo) && data_tripletex.Orders.values.Any(e => e.id.ToString() == r.cERPDraftCreditNoteNo)).ToList();
+
+            foreach (var creditnote in updatedcreditnotes)
+            {
+                try
+                {
+                    var existingorder = data_tripletex.Orders.values.FirstOrDefault(r => r.id.ToString() == creditnote.cERPDraftCreditNoteNo);
+
+                    var updatedorder = GetTripletexOrderCreditNote(creditnote, existingorder, data_acentio, data_tripletex);
+
+                    var tripletex_response = await SaveTripletexOrderCreditNote(creditnote, updatedorder, tripletex_client);
+                    if (tripletex_response.Success) await SaveCRMDraftCreditNote(tripletex_response,creditnote, acentiocrm_client);
+                    else await ResetCRMCreditNote(creditnote, tripletex_response.Info, acentiocrm_client);
+
+                    await SaveNotes("CreditNote", creditnote.id, tripletex_response.Info, acentiocrm_client, Settings.PersistTripleTexInvoices.Warning, Settings.PersistTripleTexInvoices.Error);
+                }
+                catch (Exception ex)
+                {
+                    var info = new List<string>();
+                    info.Add(ex.Message);
+                    await ResetCRMCreditNote(creditnote, info, acentiocrm_client);
+                    await SaveNotes("CreditNote", creditnote.id, info, acentiocrm_client, Settings.PersistTripleTexInvoices.Warning, Settings.PersistTripleTexInvoices.Error);
+                }
+
+            }
+        }
 
         private async Task<Tripletex.Order.OrderLineResponseWrapper> GetOrderLine(int id, HttpClient tripletex_client)
         {
@@ -234,6 +361,33 @@ namespace InvoiceScheduler_Consumer
             }
             return null;
 
+        }
+
+        private async Task HandleNewCreditNotes(HttpClient tripletex_client, HttpClient acentiocrm_client, List<Acentio.CreditNoteResponseData> creditnotes, Acentio.CombinedDataSet data_acentio, Tripletex.CombinedDataSet data_tripletex)
+        {
+            //Get All creditnotes not already synched
+            var newcreditnotes = creditnotes.Where(r => string.IsNullOrEmpty(r.cERPDraftCreditNoteNo));
+
+            foreach (var creditnota in newcreditnotes)
+            {
+                try
+                {
+                    var neworder = GetTripletexOrderCreditNote(creditnota, null, data_acentio, data_tripletex);                    
+                    var tripletex_response = await SaveTripletexOrderCreditNote(creditnota, neworder, tripletex_client);
+                    if (tripletex_response.Success) await SaveCRMDraftCreditNote(tripletex_response, creditnota, acentiocrm_client);
+                    else await ResetCRMCreditNote(creditnota, tripletex_response.Info, acentiocrm_client);
+
+                    await SaveNotes("CreditNote", creditnota.id, tripletex_response.Info, acentiocrm_client, Settings.PersistTripleTexInvoices.Warning, Settings.PersistTripleTexInvoices.Error);
+
+                }
+                catch (Exception ex)
+                {
+                    var info = new List<string>();
+                    info.Add(ex.Message);
+                    await ResetCRMCreditNote(creditnota, info, acentiocrm_client);
+                    await SaveNotes("CreditNote", creditnota.id, info, acentiocrm_client, Settings.PersistTripleTexInvoices.Warning, Settings.PersistTripleTexInvoices.Error);
+                }
+            }
         }
         private async Task HandleNewInvoices(HttpClient tripletex_client, HttpClient acentiocrm_client, List<Acentio.InvoiceResponseData> invoices, Acentio.CombinedDataSet data_acentio, Tripletex.CombinedDataSet data_tripletex)
         {
@@ -316,6 +470,62 @@ namespace InvoiceScheduler_Consumer
                 syncresponse.Info.Add("Save Tripletex Order: " + "Order failed in synchronizaation with Tripletex: " + ex.Message);
 
                 Settings.PersistTripleTexInvoices.Error.Add(GetLogEntity(crm_invoice.id, ex.Message + " " + ex.StackTrace));
+            }
+
+            return syncresponse;
+        }
+        private async Task<Tripletex.Invoice.TripletexInvoiceWrapper> SaveTripletexOrderCreditNote(Acentio.CreditNoteResponseData crm_creditnote, Tripletex.Order.OrderResponseData order, HttpClient tripletex_client)
+        {
+            var url = "order" + (order.id == 0 ? "" : "/" + order.id.ToString());
+
+            var syncresponse = new Tripletex.Invoice.TripletexInvoiceWrapper();
+
+            try
+            {
+                var options = new JsonSerializerOptions { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
+                var json = JsonSerializer.Serialize(order, options);
+                StringContent content = new StringContent(json, Encoding.UTF8, "application/json");
+                var response = (order.id == 0 ? await tripletex_client.PostAsync(url, content) : await tripletex_client.PutAsync(url, content));
+                var jsonResponse = await response.Content.ReadAsStringAsync();
+                string id = "0";
+                if (response.IsSuccessStatusCode)
+                {
+                    var responsedocument = JsonSerializer.Deserialize<Tripletex.Order.OrderResponseWrapper>(jsonResponse);
+                    id = (responsedocument == null ? "0" : responsedocument.value.id.ToString());
+
+                    responsedocument = await GetOrder(id, tripletex_client);
+
+                    Settings.PersistTripleTexInvoices.NewIds.Add(new Settings.EntityData(id));
+                    syncresponse.Order = responsedocument.value;
+                    syncresponse.Success = true;
+                    syncresponse.Info.Add("Save Tripletex Order: " + "Order " + id + " successfully synchronized with Tripletex.");
+                    crm_creditnote.cPDFInvoice = responsedocument.value.preliminaryInvoice != null ? "https://tripletex.no/v2/invoice/" + responsedocument.value.preliminaryInvoice.id + "/pdf" : null;
+                    crm_creditnote.cERPDraftCreditNoteNo = id;
+
+                    if (order.id != 0)
+                    {
+                        await ClearOrderLines(responsedocument.value, tripletex_client);
+                        await SaveOrderLines(responsedocument.value.id, order.orderLines, syncresponse, tripletex_client);
+                    }
+
+                    return syncresponse;
+                }
+                else
+                {
+                    syncresponse.Order = null;
+                    syncresponse.Success = false;
+                    syncresponse.Info.Add("Save Tripletex Order: " + "Order " + id + " failed in synchronizaation with Tripletex: " + jsonResponse);
+                    Settings.PersistTripleTexInvoices.Warning.Add(GetLogEntity(id, jsonResponse));
+                }
+            }
+            catch (Exception ex)
+            {
+
+                syncresponse.Order = null;
+                syncresponse.Success = false;
+                syncresponse.Info.Add("Save Tripletex Order: " + "Order failed in synchronizaation with Tripletex: " + ex.Message);
+
+                Settings.PersistTripleTexInvoices.Error.Add(GetLogEntity(crm_creditnote.id, ex.Message + " " + ex.StackTrace));
             }
 
             return syncresponse;
@@ -480,6 +690,71 @@ namespace InvoiceScheduler_Consumer
                 tripletex_invoice_wrapper.Info.Add("Save CRM Draft Invoice: " + ex.Message);
             }
         }
+        private async Task SaveCRMDraftCreditNote(Tripletex.Invoice.TripletexInvoiceWrapper tripletex_invoice_wrapper, Acentio.CreditNoteResponseData creditnote, HttpClient acentiocrm_client)
+        {
+            var document = "CreditNote";
+            var url = "api/v1/" + document + "/" + creditnote.id;
+
+            creditnote.isLocked = false;
+            creditnote.isNotActual = true;
+
+            StringContent content = new StringContent(JsonSerializer.Serialize(creditnote), Encoding.UTF8, "application/json");
+            try
+            {
+
+                var response = await acentiocrm_client.PutAsync(url, content);
+                if (response.IsSuccessStatusCode)
+                {
+
+                }
+                else
+                {
+                    var error = response.Headers.FirstOrDefault(r => r.Key == "X-Status-Reason").Value.FirstOrDefault();
+                    Settings.Invoices.Warning.Add(GetLogEntity(creditnote.id, error));
+                    tripletex_invoice_wrapper.Info.Add("Save CRM Draft CreditNote: " + error);
+
+                }
+            }
+            catch (Exception ex)
+            {
+                Settings.Invoices.Error.Add(GetLogEntity(creditnote.id, ex.Message + " " + ex.StackTrace));
+                tripletex_invoice_wrapper.Info.Add("Save CRM Draft CreditNote: " + ex.Message);
+            }
+        }
+
+
+        
+        private async Task ResetCRMCreditNote(Acentio.CreditNoteResponseData creditnote, IList<string> info, HttpClient acentiocrm_client)
+        {
+            var document = "CreditNote";
+            var url = "api/v1/" + document + "/" + creditnote.id;
+
+            creditnote.status = "Error";
+            creditnote.isLocked = false;
+            creditnote.isNotActual = true;
+
+            StringContent content = new StringContent(JsonSerializer.Serialize(creditnote), Encoding.UTF8, "application/json");
+            try
+            {
+
+                var response = await acentiocrm_client.PutAsync(url, content);
+                if (response.IsSuccessStatusCode)
+                {
+                }
+                else
+                {
+                    var error = response.Headers.FirstOrDefault(r => r.Key == "X-Status-Reason").Value.FirstOrDefault();
+                    Settings.Invoices.Warning.Add(GetLogEntity(creditnote.id, error));
+                    info.Add("Reset CRM CreditNote: " + "Error resetting: " + error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Settings.Invoices.Error.Add(GetLogEntity(creditnote.id, ex.Message + " " + ex.StackTrace));
+                info.Add("Reset CRM CreditNote: " + "error resetting: " + ex.Message);
+            }
+
+        }
         private async Task ResetCRMInvoice(Acentio.InvoiceResponseData invoice, IList<string> info, HttpClient acentiocrm_client)
         {
             var document = "Invoice";
@@ -510,6 +785,77 @@ namespace InvoiceScheduler_Consumer
                 info.Add("Reset CRM Invoice: " + "error resetting: " + ex.Message);
             }
 
+        }
+
+        private Tripletex.Order.OrderResponseData GetTripletexOrderCreditNote(Acentio.CreditNoteResponseData creditnote, Tripletex.Order.OrderResponseData existing, Acentio.CombinedDataSet data_acentio, Tripletex.CombinedDataSet data_tripletex)
+        {
+            var target = (existing == null ? new Tripletex.Order.OrderResponseData() : existing);
+     
+            var crm_account = data_acentio.Accounts.list.FirstOrDefault(r => r.id == creditnote.accountId);
+            var tripletex_account = data_tripletex.Customers.values.FirstOrDefault(r => r.customerNumber.ToString() == crm_account.cERPCustomerNo);
+
+            if (target.customer == null) target.customer = new Tripletex.Order.Customer();
+            target.customer.id = tripletex_account.id;
+
+            target.orderDate = creditnote.dateDue;
+
+            target.deliveryDate = creditnote.dateIssued;
+            DateTime dt;
+            target.invoiceComment = "";
+            if (creditnote.Invoice.cAccruedStart != creditnote.Invoice.cAccruedEnd)
+            {
+                if (DateTime.TryParse(creditnote.Invoice.cAccruedStart, out dt))
+                {
+                    target.deliveryDate = dt.ToString("yyyy-MM-dd");
+
+                    target.invoiceComment += dt.ToString("dd-MM-yyyy");
+                }
+                if (DateTime.TryParse(creditnote.Invoice.cAccruedEnd, out dt))
+                {
+                    target.invoiceComment += " - " + dt.ToString("dd-MM-yyyy");
+                }
+            }
+            if (string.IsNullOrWhiteSpace(target.deliveryDate)) target.deliveryDate = DateTime.Now.ToString("yyyy-MM-dd");
+
+            GetTripletexOrderLinesCreditNote(creditnote, target, data_acentio, data_tripletex);
+
+            return target;
+
+        }
+
+        private void GetTripletexOrderLinesCreditNote(Acentio.CreditNoteResponseData creditnote, OrderResponseData target, Acentio.CombinedDataSet data_acentio, Tripletex.CombinedDataSet data_tripletex)
+        {
+            target.orderLines = new List<Tripletex.Order.OrderLine>();
+            var creditnoteitems = data_acentio.CreditNoteItems.list.Where(r => r.creditNoteId == creditnote.id).ToList();
+            foreach (var line in creditnoteitems)
+            {
+                var newline = new Tripletex.Order.OrderLine();
+                Tripletex.Product.ProductResponseData tripletex_product = null;
+                if (!string.IsNullOrEmpty(line.productId))
+                {
+                    var crm_product = data_acentio.Products.list.FirstOrDefault(r => r.id == line.productId);
+                    if (crm_product != null)
+                    {
+                        tripletex_product = data_tripletex.Products.values.FirstOrDefault(r => r.id.ToString() == crm_product.cSyncid);
+                        if (tripletex_product != null)
+                        {
+                            if (newline.product == null) newline.product = new Tripletex.Order.Product();
+                            newline.product.id = tripletex_product.id;
+                        }
+                    }
+                }
+
+                newline.description = (string.IsNullOrWhiteSpace(line.description) ? (tripletex_product == null ? (string.IsNullOrWhiteSpace(line.name) ? "N/A" : line.name) : tripletex_product.name) : line.description);
+                newline.count = -1*line.quantity;
+
+                newline.sortIndex = line.order - 1;
+                //newline.amountExcludingVatCurrency = RoundDown(line.unitPrice, 2);
+                newline.unitPriceExcludingVatCurrency = RoundDown(line.unitPrice, 2);
+                newline.discount = 0;
+
+                target.orderLines.Add(newline);
+
+            }
         }
 
         private Tripletex.Order.OrderResponseData GetTripletexOrder(Acentio.InvoiceResponseData invoice, Tripletex.Order.OrderResponseData existing, Acentio.CombinedDataSet data_acentio, Tripletex.CombinedDataSet data_tripletex)

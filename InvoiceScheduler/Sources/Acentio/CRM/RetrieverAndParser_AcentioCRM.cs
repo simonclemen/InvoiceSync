@@ -257,10 +257,14 @@ namespace InvoiceScheduler_Consumer
                     filter = GetFilter("id", data.CreditNotes.list.Select(r => r.billingContactId).Where(id => !string.IsNullOrEmpty(id)).Distinct().ToList());
                     data.Contacts = await GetData<ContactResponse, ContactResponseData>(client, "Contact?" + filter);
 
+                    filter = GetFilter("id", data.CreditNotes.list.Select(r => r.invoiceId).Where(id => !string.IsNullOrEmpty(id)).Distinct().ToList());
+                    var invoices = await GetData<InvoiceResponse, InvoiceResponseData>(client, "Invoice?" + filter);
+
 
                     foreach (var creditnote in creditnotes.list)
                     {
-                       creditnote.itemList = data.CreditNoteItems.list.Where(r => r.creditNoteId == creditnote.id).ToList();
+                        creditnote.itemList = data.CreditNoteItems.list.Where(r => r.creditNoteId == creditnote.id).ToList();
+                        creditnote.Invoice = invoices.list.FirstOrDefault(r => r.id == creditnote.invoiceId);
 
                     }
                 }
