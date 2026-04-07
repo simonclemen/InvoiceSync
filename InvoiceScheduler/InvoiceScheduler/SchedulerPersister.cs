@@ -50,33 +50,37 @@ namespace InvoiceScheduler_Consumer
             {
                 var salesorder = data_acentio.SalesOrders.list.FirstOrDefault(r => r.id == item.Sales_Order_Id);
                 var salesorderitems = data_acentio.SalesOrderItems.list.Where(r => r.salesOrderId == item.Sales_Order_Id);
-                
-                try
+
+                if ((salesorder.cInvoicedFrom ?? "").ToLower() == "e-conomic (dk)" || (salesorder.cInvoicedFrom ?? "").ToLower() == "tripletex (no)")
                 {
-                   
-                    var invoice = GetInvoice(item, salesorder, salesorderitems, data_acentio.Accounts.list);
-                    StringContent content = new StringContent(JsonSerializer.Serialize(invoice), Encoding.UTF8, "application/json");
-                    var response = await client.PostAsync(url, content);
-                    var jsonResponse = await response.Content.ReadAsStringAsync();
-                    var responsedocument = JsonSerializer.Deserialize<Acentio.InvoiceResponseData>(jsonResponse);
-                    var id = (responsedocument == null ? "0" : responsedocument.id);
-                    if (response.IsSuccessStatusCode)
+                    try
                     {
-                        Settings.Invoices.NewIds.Add(new Settings.EntityData(id));
-                        result.Add(new InvoiceRecord(item.Id, id, item.Sales_Order_Version) );
-                        string info = "New invoice based on scheduling information: SalesOrderId: " + item.Sales_Order_Id + ", Version: " + item.Sales_Order_Version;
-                        await SaveNote("Invoice", id, info, client, Settings.Invoices.Warning, Settings.Invoices.Error);
+
+                        var invoice = GetInvoice(item, salesorder, salesorderitems, data_acentio.Accounts.list);
+                        StringContent content = new StringContent(JsonSerializer.Serialize(invoice), Encoding.UTF8, "application/json");
+                        var response = await client.PostAsync(url, content);
+                        var jsonResponse = await response.Content.ReadAsStringAsync();
+                        var responsedocument = JsonSerializer.Deserialize<Acentio.InvoiceResponseData>(jsonResponse);
+                        var id = (responsedocument == null ? "0" : responsedocument.id);
+                        if (response.IsSuccessStatusCode)
+                        {
+                            Settings.Invoices.NewIds.Add(new Settings.EntityData(id));
+                            result.Add(new InvoiceRecord(item.Id, id, item.Sales_Order_Version));
+                            string info = "New invoice based on scheduling information: SalesOrderId: " + item.Sales_Order_Id + ", Version: " + item.Sales_Order_Version;
+                            await SaveNote("Invoice", id, info, client, Settings.Invoices.Warning, Settings.Invoices.Error);
+                        }
+                        else
+                        {
+                            var error = response.Headers.FirstOrDefault(r => r.Key == "X-Status-Reason").Value.FirstOrDefault();
+                            Settings.Invoices.Warning.Add(GetLogEntity(id, error));
+                        }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        var error = response.Headers.FirstOrDefault(r => r.Key == "X-Status-Reason").Value.FirstOrDefault();
-                        Settings.Invoices.Warning.Add(GetLogEntity(id, error));
+                        Settings.Invoices.Error.Add(GetLogEntity(item.Id, ex.Message + " " + ex.StackTrace));
                     }
                 }
-                catch (Exception ex)
-                {
-                    Settings.Invoices.Error.Add(GetLogEntity(item.Id, ex.Message + " " + ex.StackTrace));
-                }                
+                else Settings.Invoices.Log.Add("Skipped creation as not correct invoiced from:" + (salesorder.cInvoicedFrom ?? "") + ", " + item.Sales_Order_Id);
             }
             return result;
         }

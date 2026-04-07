@@ -26,6 +26,6 @@ namespace InvoiceScheduler_Consumer
 
 
 
-        internal static readonly string GetLastRun = @"select top 1 CONVERT(nvarchar(50), Dateadd(second, -1, DATEADD(MI, (DATEDIFF(MI, SYSDATETIME(), SYSUTCDATETIME())), r.created)), 126) from [dbo].[Transfer_Runs] r where r.[system] = @systemid and not exists(select top 1 1 From Transfer_Errors te where te.TransactionId = r.TransactionId) order by Created desc";
+        internal static readonly string GetLastRun = @"select top 1 CONVERT(nvarchar(50), Dateadd(second, -20, DATEADD(MI, (DATEDIFF(MI, SYSDATETIME(), SYSUTCDATETIME())), r.created)), 126) from [dbo].[Transfer_Runs] r where r.[system] = @systemid and not exists(select top 1 1 From Transfer_Errors te where te.TransactionId = r.TransactionId) order by Created desc";
     }
 }

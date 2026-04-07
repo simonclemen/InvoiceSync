@@ -85,15 +85,15 @@ namespace InvoiceScheduler_Consumer
             CombinedDataSet data = new CombinedDataSet();
             try
             {
-                success = await GetInvoicesMatchingState(client, data, "Verified");
+                success = await GetInvoicesMatchingState(client, data, "Verified", LastrunDT);
                 CombinedDataSet data2 = new CombinedDataSet();
-                success &= await GetInvoicesMatchingState(client, data2, "Ready For Transfer");
+                success &= await GetInvoicesMatchingState(client, data2, "Ready For Transfer", null);
                 data.Combine(data2);
                 data2 = new CombinedDataSet();
-                success &= await GetCreditNoteMatchingState(client, data2, "Verified");
+                success &= await GetCreditNoteMatchingState(client, data2, "Verified", LastrunDT);
                 data.Combine(data2);
                 data2 = new CombinedDataSet();
-                success &= await GetCreditNoteMatchingState(client, data2, "Ready For Transfer");
+                success &= await GetCreditNoteMatchingState(client, data2, "Ready For Transfer", null);
                 data.Combine(data2);
 
                 data2 = new CombinedDataSet();
@@ -154,10 +154,10 @@ namespace InvoiceScheduler_Consumer
             return data;
         }
 
-        private async Task<bool> GetInvoicesMatchingState(HttpClient client, CombinedDataSet data, string state)
+        private async Task<bool> GetInvoicesMatchingState(HttpClient client, CombinedDataSet data, string state, string lastrun)
          {
             
-            var invoices = await GetData<InvoiceResponse, InvoiceResponseData>(client, "Invoice?where[0][type]=equals&where[0][attribute]=status&where[0][value]=" + state + "&where[1][type]=after&where[1][attribute]=modifiedAt&where[1][value]="+LastrunDT+ "&where[2][type]=notEquals&where[2][attribute]=modifiedById&where[2][value]=693c611227539034c");
+            var invoices = await GetData<InvoiceResponse, InvoiceResponseData>(client, "Invoice?where[0][type]=equals&where[0][attribute]=status&where[0][value]=" + state + (string.IsNullOrEmpty(lastrun) ? "":"&where[1][type]=after&where[1][attribute]=modifiedAt&where[1][value]="+ lastrun + "&where[2][type]=notEquals&where[2][attribute]=modifiedById&where[2][value]=693c611227539034c"));
             
             if (invoices.Success)
             {
@@ -236,9 +236,9 @@ namespace InvoiceScheduler_Consumer
             }
             return false;
         }
-        private async Task<bool> GetCreditNoteMatchingState(HttpClient client, CombinedDataSet data, string state)
+        private async Task<bool> GetCreditNoteMatchingState(HttpClient client, CombinedDataSet data, string state, string lastrun)
         {
-            var creditnotes = await GetData<CreditNoteResponse, CreditNoteResponseData>(client, "CreditNote?where[0][type]=equals&where[0][attribute]=status&where[0][value]=" + state+ "&where[1][type]=after&where[1][attribute]=modifiedAt&where[1][value]=" + LastrunDT + "&where[2][type]=notEquals&where[2][attribute]=modifiedById&where[2][value]=693c611227539034c");
+            var creditnotes = await GetData<CreditNoteResponse, CreditNoteResponseData>(client, "CreditNote?where[0][type]=equals&where[0][attribute]=status&where[0][value]=" + state+ (string.IsNullOrWhiteSpace(lastrun) ? "" : "&where[1][type]=after&where[1][attribute]=modifiedAt&where[1][value]=" + lastrun + "&where[2][type]=notEquals&where[2][attribute]=modifiedById&where[2][value]=693c611227539034c"));
 
             if (creditnotes.Success)
             {

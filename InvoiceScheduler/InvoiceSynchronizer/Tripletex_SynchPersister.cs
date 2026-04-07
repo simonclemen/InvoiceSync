@@ -277,11 +277,12 @@ namespace InvoiceScheduler_Consumer
                 StringContent content = new StringContent(json, Encoding.UTF8, "application/json");
                 var response = (order.id == 0 ? await tripletex_client.PostAsync(url, content) : await tripletex_client.PutAsync(url, content));
                 var jsonResponse = await response.Content.ReadAsStringAsync();
-                var responsedocument = JsonSerializer.Deserialize<Tripletex.Order.OrderResponseWrapper>(jsonResponse);
-                var id = (responsedocument == null ? "0" : responsedocument.value.id.ToString());
-                
+                string id = "0";
                 if (response.IsSuccessStatusCode)
                 {
+                    var responsedocument = JsonSerializer.Deserialize<Tripletex.Order.OrderResponseWrapper>(jsonResponse);
+                     id = (responsedocument == null ? "0" : responsedocument.value.id.ToString());
+
                     responsedocument = await GetOrder(id, tripletex_client);
 
                     Settings.PersistTripleTexInvoices.NewIds.Add(new Settings.EntityData(id));
@@ -291,9 +292,10 @@ namespace InvoiceScheduler_Consumer
                     crm_invoice.cPDFInvoice = responsedocument.value.preliminaryInvoice!=null ? "https://tripletex.no/v2/invoice/" + responsedocument.value.preliminaryInvoice.id + "/pdf" : null; 
                     crm_invoice.cERPDraftInvoiceNo = id;
 
-                    foreach (var ol in order.orderLines)
+                    if (order.id != 0)
                     {
-                          await SaveTripletexOrderLine(syncresponse, ol, tripletex_client);
+                        await ClearOrderLines(responsedocument.value, tripletex_client);
+                        await SaveOrderLines(responsedocument.value.id, order.orderLines, syncresponse, tripletex_client);
                     }
 
                     return syncresponse;
@@ -318,11 +320,56 @@ namespace InvoiceScheduler_Consumer
 
             return syncresponse;
         }
+
+        private async Task ClearOrderLines(OrderResponseData order, HttpClient tripletex_client)
+        {
+            foreach (var ol in order.orderLines)
+            {
+                await DeleteOrderLine(ol, tripletex_client);
+            }
+        }
+
+        private async Task DeleteOrderLine(Tripletex.Order.OrderLine orderline, HttpClient tripletex_client)
+        {
+            var url = "/v2/order/orderline" +  "/" + orderline.id.ToString();
+
+            try
+            {
+                var response = await tripletex_client.DeleteAsync(url);
+                var jsonResponse = await response.Content.ReadAsStringAsync();
+                if (response.IsSuccessStatusCode)
+                {
+                }
+                else
+                {
+                    //syncresponse.Success = false;
+                    //syncresponse.Info.Add("Save Tripletex Order Line: " + "Order Line:" + id + " failed in synchronization with Tripletex: " + jsonResponse);
+                    //Settings.PersistTripleTexInvoices.Warning.Add(GetLogEntity(id, jsonResponse));
+                }
+            }
+            catch (Exception ex)
+            {
+                //syncresponse.Success = false;
+                //syncresponse.Info.Add("Save Tripletex Order Line: " + "Order Line failed in synchronization with Tripletex: " + ex.Message);
+
+                //Settings.PersistTripleTexInvoices.Error.Add(GetLogEntity(orderline.id.ToString(), ex.Message + " " + ex.StackTrace));
+            }
+        }
+
+        private async Task SaveOrderLines(int id, List<Tripletex.Order.OrderLine> orderLines, TripletexInvoiceWrapper syncresponse, HttpClient tripletex_client)
+        {
+            foreach (var ol in orderLines)
+            {
+                ol.order = new Tripletex.Order.Order() { id = id };
+                await SaveTripletexOrderLine(syncresponse, ol, tripletex_client);
+            }
+        }
+
         private async Task SaveTripletexOrderLine(Tripletex.Invoice.TripletexInvoiceWrapper syncresponse, Tripletex.Order.OrderLine orderline, HttpClient tripletex_client)
         {
             var url = "/v2/order/orderline" + (orderline.id == 0 ? "" : "/" + orderline.id.ToString());
 
-            var existingorderline = await GetOrderLine(orderline.id, tripletex_client);
+            Tripletex.Order.OrderLineResponseWrapper existingorderline = (orderline.id == 0 ? null:await GetOrderLine(orderline.id, tripletex_client));
             if (existingorderline != null) orderline.version = existingorderline.value.version;
             try
             {
@@ -331,11 +378,12 @@ namespace InvoiceScheduler_Consumer
                 StringContent content = new StringContent(json, Encoding.UTF8, "application/json");
                 var response = (orderline.id == 0 ? await tripletex_client.PostAsync(url, content) : await tripletex_client.PutAsync(url, content));
                 var jsonResponse = await response.Content.ReadAsStringAsync();
-                var responsedocument = JsonSerializer.Deserialize<Tripletex.Order.OrderResponseWrapper>(jsonResponse);
-                var id = (responsedocument == null ? "0" : responsedocument.value.id.ToString());
-
+                string id = "0";              
                 if (response.IsSuccessStatusCode)
-                {                   
+                {
+                    var responsedocument = JsonSerializer.Deserialize<Tripletex.Order.OrderResponseWrapper>(jsonResponse);
+                    id = (responsedocument == null ? "0" : responsedocument.value.id.ToString());
+
                     Settings.PersistTripleTexInvoices.NewIds.Add(new Settings.EntityData(id));
                     syncresponse.Success = true;
                     syncresponse.Info.Add("Save Tripletex Order Line: " + "Order Line:" + id + " successfully synchronized with Tripletex.");
@@ -475,7 +523,8 @@ namespace InvoiceScheduler_Consumer
             target.customer.id = tripletex_account.id;
 
             target.orderDate = invoice.dateInvoiced;
-            //target.deliveryDate = invoice.dateInvoiced;
+           
+            target.deliveryDate = string.IsNullOrWhiteSpace(invoice.dateInvoiced) ?  DateTime.Now.ToString("yyyy-MM-dd"): invoice.dateInvoiced;
 
             DateTime dt;
             target.invoiceComment = "";
@@ -483,6 +532,8 @@ namespace InvoiceScheduler_Consumer
             {
                 if (DateTime.TryParse(invoice.cAccruedStart, out dt))
                 {
+                    target.deliveryDate = string.IsNullOrWhiteSpace(invoice.dateInvoiced) ? dt.ToString("dd-MM-yyyy") : invoice.dateInvoiced;
+
                     target.invoiceComment += dt.ToString("dd-MM-yyyy");
                 }
                 if (DateTime.TryParse(invoice.cAccruedEnd, out dt))
@@ -490,7 +541,8 @@ namespace InvoiceScheduler_Consumer
                     target.invoiceComment += " - " + dt.ToString("dd-MM-yyyy");
                 }
             }
-            
+            if (string.IsNullOrWhiteSpace(target.deliveryDate)) target.deliveryDate = DateTime.Now.ToString("yyyy-MM-dd");
+
             GetTripletexOrderLines(invoice, target, data_acentio, data_tripletex);
 
             return target;
@@ -499,12 +551,11 @@ namespace InvoiceScheduler_Consumer
 
         private void GetTripletexOrderLines(Acentio.InvoiceResponseData invoice, OrderResponseData target, Acentio.CombinedDataSet data_acentio, Tripletex.CombinedDataSet data_tripletex)
         {
-            if (target.orderLines==null) target.orderLines = new List<Tripletex.Order.OrderLine>();
+            target.orderLines = new List<Tripletex.Order.OrderLine>();
             var invoiceitems = data_acentio.InvoiceItems.list.Where(r => r.invoiceId == invoice.id).ToList();
             foreach (var line in invoiceitems)
             {
-                var existingline = target.orderLines.FirstOrDefault(r=>r.sortIndex == line.order-1);
-                var newline =  (existingline!=null ? existingline :new Tripletex.Order.OrderLine());
+                var newline =  new Tripletex.Order.OrderLine();
                 Tripletex.Product.ProductResponseData tripletex_product = null;
                 if (!string.IsNullOrEmpty(line.productId))
                 {
