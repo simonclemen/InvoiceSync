@@ -103,6 +103,7 @@ namespace InvoiceScheduler_Consumer
                     syncresponse.Info.Add("Tripletex Booked CreditNote: " + "CreditNote " + id + " successfully synchronized with Tripletex.");
                     crm_creditnote.cPDFInvoice = responsedocument.value != null ? "https://tripletex.no/v2/invoice/" + responsedocument.value.id + "/pdf" : null;
                     crm_creditnote.cERPCreditNoteNo = id;
+                    crm_creditnote.cCreditNoteNumber = responsedocument.value.invoiceNumber.ToString();
                     crm_creditnote.status = "Sent";
 
                     return syncresponse;
@@ -154,6 +155,7 @@ namespace InvoiceScheduler_Consumer
                     crm_invoice.cPDFInvoice = responsedocument.value != null ? "https://tripletex.no/v2/invoice/" + responsedocument.value.id + "/pdf" : null;
                     crm_invoice.cERPInvoiceNo = id;
                     crm_invoice.status = "Sent";
+                    crm_invoice.cInvoiceNumber = responsedocument.value.invoiceNumber.ToString();
                     
                     return syncresponse;
                 }
@@ -444,7 +446,7 @@ namespace InvoiceScheduler_Consumer
                     syncresponse.Success = true;
                     syncresponse.Info.Add("Save Tripletex Order: " + "Order " + id + " successfully synchronized with Tripletex.");
                     crm_invoice.cPDFInvoice = responsedocument.value.preliminaryInvoice!=null ? "https://tripletex.no/v2/invoice/" + responsedocument.value.preliminaryInvoice.id + "/pdf" : null; 
-                    crm_invoice.cERPDraftInvoiceNo = id;
+                    crm_invoice.cERPDraftInvoiceNo = id;                    
 
                     if (order.id != 0)
                     {

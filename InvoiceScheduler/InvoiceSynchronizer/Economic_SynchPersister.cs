@@ -816,6 +816,7 @@ namespace InvoiceScheduler_Consumer
             {
                 invoice.cERPDraftInvoiceNo = economic_invoice.draftInvoiceNumber.ToString();
                 invoice.cPDFInvoice = economic_invoice.pdf != null ? economic_invoice.pdf.download : string.Empty;
+                invoice.cInvoiceNumber = economic_invoice.draftInvoiceNumber.ToString();
 
             }
             
@@ -856,6 +857,7 @@ namespace InvoiceScheduler_Consumer
             {
                 creditnote.cERPDraftCreditNoteNo = economic_invoice.draftInvoiceNumber.ToString();
                 creditnote.cPDFInvoice = economic_invoice.pdf != null ? economic_invoice.pdf.download : string.Empty;
+                creditnote.cCreditNoteNumber = economic_invoice.draftInvoiceNumber.ToString();
 
             }
 
