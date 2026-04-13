@@ -342,6 +342,8 @@ namespace InvoiceScheduler_Consumer_AcentioCRM
         public string cType { get; internal set; }
 
         public string cInvoiceNumber { get; set; }
+
+        public bool cInternalInvoice { get; set; }
     }
 
     public class InvoiceItemResponse : GenericResponse<InvoiceItemResponseData>
@@ -457,6 +459,8 @@ namespace InvoiceScheduler_Consumer_AcentioCRM
 
         public string cCreditNoteNumber { get; set; }
         public InvoiceResponseData Invoice { get; set; }
+
+        public bool cInternalCreditNote { get; set; }
     }
     public class CreditNoteItemResponse : GenericResponse<CreditNoteItemResponseData>
     {

@@ -55,7 +55,7 @@ namespace InvoiceScheduler_Consumer
             foreach (var invoice in economic_booked_invoices)
             {
                 try {
-                    var economic_response = await SaveEconomicBookedInvoice(invoice.id, invoice.cERPDraftInvoiceNo, invoice.accountId, economic_client, data_acentio, data_economic);
+                    var economic_response = await SaveEconomicBookedInvoice(invoice.id, invoice.cERPDraftInvoiceNo, invoice.accountId,invoice.cInternalInvoice, economic_client, data_acentio, data_economic);
                     if (economic_response.Success) await SaveCRMBookedInvoice(economic_response, invoice, acentiocrm_client);
                     else await ResetCRMInvoice(invoice, economic_response.Info, acentiocrm_client);
                     
@@ -115,7 +115,7 @@ namespace InvoiceScheduler_Consumer
             {
                 try
                 {
-                    var economic_response = await SaveEconomicBookedInvoice(creditnote.id, creditnote.cERPDraftCreditNoteNo, creditnote.accountId, economic_client, data_acentio, data_economic);
+                    var economic_response = await SaveEconomicBookedInvoice(creditnote.id, creditnote.cERPDraftCreditNoteNo, creditnote.accountId, creditnote.cInternalCreditNote, economic_client, data_acentio, data_economic);
                     if (economic_response.Success) await SaveCRMBookedCreditNote(economic_response, creditnote, acentiocrm_client);
                     else await ResetCRMCreditNote(creditnote, economic_response.Info, acentiocrm_client);
 
@@ -644,7 +644,7 @@ namespace InvoiceScheduler_Consumer
             var power = Convert.ToDecimal(Math.Pow(10, decimalPlaces));
             return Math.Floor(i * power) / power;
         }
-        private async Task<Economic.Invoice.EconomicInvoiceWrapper> SaveEconomicBookedInvoice(string documentid, string draftid, string accountid, HttpClient economic_client, Acentio.CombinedDataSet data_acentio, Economic.CombinedDataSet data_economic)
+        private async Task<Economic.Invoice.EconomicInvoiceWrapper> SaveEconomicBookedInvoice(string documentid, string draftid, string accountid,bool isInternalInvoice, HttpClient economic_client, Acentio.CombinedDataSet data_acentio, Economic.CombinedDataSet data_economic)
         {
             var document = "invoices/booked";
             var url = "/" + document;
@@ -656,15 +656,15 @@ namespace InvoiceScheduler_Consumer
 
                 var bookedInvoice = new Economic.BookedInvoice.BookedInvoice();
                 bookedInvoice.draftInvoice.draftInvoiceNumber = Convert.ToInt32(draftid/*invoice.cERPDraftInvoiceNo*/);
-                if (economic_account != null)
+                if (economic_account != null && !isInternalInvoice)
                 {
                     if (!economic_account.eInvoicingDisabledByDefault && !string.IsNullOrEmpty(economic_account.ean)) bookedInvoice.sendBy = "ean";
                     else if (!string.IsNullOrWhiteSpace(crm_account.cEmailForPDFInvoicing)) bookedInvoice.sendBy = "email";
-                    else throw new ArgumentException("no means of sending invoice? Active e-Invoicing:: " + !economic_account.eInvoicingDisabledByDefault +", ean: " + (economic_account.ean??"") + ",e-mail: " + (crm_account.cEmailForPDFInvoicing ?? "")); 
+                    else throw new ArgumentException("no means of sending invoice? Active e-Invoicing:: " + !economic_account.eInvoicingDisabledByDefault + ", ean: " + (economic_account.ean ?? "") + ",e-mail: " + (crm_account.cEmailForPDFInvoicing ?? ""));
                 }
-                
-                
-                var options = new JsonSerializerOptions{DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull};
+                else bookedInvoice.sendBy = null;
+
+                var options = new JsonSerializerOptions { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
                 StringContent content = new StringContent(JsonSerializer.Serialize(bookedInvoice, options), Encoding.UTF8, "application/json");             
                 var response = await economic_client.PostAsync(url, content);
                 var jsonResponse = await response.Content.ReadAsStringAsync();
@@ -675,14 +675,14 @@ namespace InvoiceScheduler_Consumer
                     Settings.Invoices.NewIds.Add(new Settings.EntityData(id));
                     syncresponse.Invoice = responsedocument;
                     syncresponse.Success = true;
-                    syncresponse.Info.Add("Save Economic Booked Invoice: " + "Invoice " + id + " successfully booked with E-conomic.");                    
+                    syncresponse.Info.Add("Save Economic Booked Invoice: " + "Invoice " + id + " successfully booked with E-conomic." + " Sending: " + (bookedInvoice.sendBy??"None"));                    
                     return syncresponse;
                 }
                 else
                 {                    
                     Settings.Invoices.Warning.Add(GetLogEntity(id, jsonResponse));
                     syncresponse.Success = false;
-                    syncresponse.Info.Add("Save Economic Booked Invoice: Error: " + "Invoice " + id + " " + jsonResponse);
+                    syncresponse.Info.Add("Save Economic Booked Invoice: Error: " + "Invoice " + id + " Sending: " + (bookedInvoice.sendBy ?? "None") +" " + jsonResponse);
 
                 }
             }

@@ -24,9 +24,8 @@ namespace InvoiceScheduler_Consumer
 
         internal async Task<CombinedDataSet> GetMasterdata()
         {
-            var client = GetClient();
-          
-            var filter = string.IsNullOrWhiteSpace(LastrunDT)? "": "where[0][type]=after&where[0][attribute]=modifiedAt&where[0][value]=" + LastrunDT + "&where[1][type]=notEquals&where[1][attribute]=modifiedById&where[1][value]=693c611227539034c";
+            var client = GetClient();            
+            var filter = string.IsNullOrWhiteSpace(LastrunDT)? "": "where[0][type]=greaterThanOrEquals&where[0][attribute]=modifiedAt&where[0][value]=" + LastrunDT + "&where[1][type]=or&where[1][value][0][type]=notEquals&where[1][value][0][attribute]=modifiedById&where[1][value][0][value]=693c611227539034c&where[1][value][1][type]=isNull&where[1][value][1][attribute]=modifiedById";
             var products = await GetData<ProductResponse, ProductResponseData>(client, "Product?" + filter);
             var contacts = await GetData<ContactResponse, ContactResponseData>(client, "Contact?" + filter);
             filter = string.IsNullOrWhiteSpace(LastrunDT) ? "" : GetFilter("id", contacts.list.Select(r => r.accountId).ToList());
@@ -157,8 +156,8 @@ namespace InvoiceScheduler_Consumer
         private async Task<bool> GetInvoicesMatchingState(HttpClient client, CombinedDataSet data, string state, string lastrun)
          {
             
-            var invoices = await GetData<InvoiceResponse, InvoiceResponseData>(client, "Invoice?where[0][type]=equals&where[0][attribute]=status&where[0][value]=" + state + (string.IsNullOrEmpty(lastrun) ? "":"&where[1][type]=after&where[1][attribute]=modifiedAt&where[1][value]="+ lastrun + "&where[2][type]=notEquals&where[2][attribute]=modifiedById&where[2][value]=693c611227539034c"));
-            
+            var invoices = await GetData<InvoiceResponse, InvoiceResponseData>(client, "Invoice?where[0][type]=equals&where[0][attribute]=status&where[0][value]=" + state + (string.IsNullOrWhiteSpace(lastrun) ? "" : ("&where[1][type]=greaterThanOrEquals&where[1][attribute]=modifiedAt&where[1][value]=" + lastrun + "&where[2][type]=or&where[2][value][0][type]=notEquals&where[2][value][0][attribute]=modifiedById&where[2][value][0][value]=693c611227539034c&where[2][value][1][type]=isNull&where[2][value][1][attribute]=modifiedById")));
+
             if (invoices.Success)
             {
                 if (data.Invoices == null) data.Invoices = invoices;
@@ -238,8 +237,7 @@ namespace InvoiceScheduler_Consumer
         }
         private async Task<bool> GetCreditNoteMatchingState(HttpClient client, CombinedDataSet data, string state, string lastrun)
         {
-            var creditnotes = await GetData<CreditNoteResponse, CreditNoteResponseData>(client, "CreditNote?where[0][type]=equals&where[0][attribute]=status&where[0][value]=" + state+ (string.IsNullOrWhiteSpace(lastrun) ? "" : "&where[1][type]=after&where[1][attribute]=modifiedAt&where[1][value]=" + lastrun + "&where[2][type]=notEquals&where[2][attribute]=modifiedById&where[2][value]=693c611227539034c"));
-
+            var creditnotes = await GetData<CreditNoteResponse, CreditNoteResponseData>(client, "CreditNote?where[0][type]=equals&where[0][attribute]=status&where[0][value]=" + state + (string.IsNullOrWhiteSpace(lastrun) ? "" : ("&where[1][type]=greaterThanOrEquals&where[1][attribute]=modifiedAt&where[1][value]=" + lastrun + "&where[2][type]=or&where[2][value][0][type]=notEquals&where[2][value][0][attribute]=modifiedById&where[2][value][0][value]=693c611227539034c&where[2][value][1][type]=isNull&where[2][value][1][attribute]=modifiedById")));
             if (creditnotes.Success)
             {
                 if (data.CreditNotes == null) data.CreditNotes = creditnotes;
