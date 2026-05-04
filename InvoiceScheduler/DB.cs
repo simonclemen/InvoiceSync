@@ -145,7 +145,7 @@ namespace InvoiceScheduler_Consumer
                     Context.Execute(sql: SQL.SaveNewIds, param: parms, transaction: _currenttrans, commandType: System.Data.CommandType.Text, commandTimeout: _timeout);
                 }
             }
-            catch (Exception)
+            catch (Exception e)
             {
 
 

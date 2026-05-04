@@ -47,20 +47,20 @@ namespace TripleTexDataTransfer_Consumer_TripleTex.Product
 
     public class Currency
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     public class ProductUnit
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
 
     public class VatType
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 }

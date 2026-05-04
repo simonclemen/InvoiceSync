@@ -32,9 +32,20 @@ namespace InvoiceScheduler_Consumer
                 persisterDB.Save(data);
                 if (data.Count > 0) persisterDB.InformOnSuccess(settings);
 
-                if (settings.Warning.Count > 0 && settings.Error.Count > 0) persisterDB.InformOnFailure(settings.SystemId+": There are warnings (" + settings.Warning.Count + ") & errors (" + settings.Error.Count + ")!", settings);
-                else if (settings.Warning.Count>0) persisterDB.InformOnFailure(settings.SystemId+": There are warnings (" + settings.Warning.Count + ")!", settings);
-                else if (settings.Error.Count > 0) persisterDB.InformOnFailure(settings.SystemId + ": There are errors (" + settings.Error.Count + ")!", settings);
+                var wmsg = "";
+                foreach(var w in settings.Warning)
+                {
+                    wmsg += w.Item1 + ", " + w.Item2 + "<br/>";
+                }
+                var emsg = "";
+                foreach (var e in settings.Error)
+                {
+                    emsg += e.Item1 + ", " + e.Item2 + "<br/>";
+                }
+
+                if (settings.Warning.Count > 0 && settings.Error.Count > 0) persisterDB.InformOnFailure(settings.SystemId+": There are warnings (" + settings.Warning.Count + ") & errors (" + settings.Error.Count + ")!<br/>" +wmsg + "<br/>" +emsg, settings);
+                else if (settings.Warning.Count>0) persisterDB.InformOnFailure(settings.SystemId+": There are warnings (" + settings.Warning.Count + ")!<br/>" + wmsg, settings);
+                else if (settings.Error.Count > 0) persisterDB.InformOnFailure(settings.SystemId + ": There are errors (" + settings.Error.Count + ")!<br/>" +emsg, settings);
 
             }
             catch (Exception ex)

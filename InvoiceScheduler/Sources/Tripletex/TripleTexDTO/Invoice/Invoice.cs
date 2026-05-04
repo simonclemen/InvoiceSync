@@ -40,7 +40,7 @@ namespace TripleTexDataTransfer_Consumer_TripleTex.Invoice
        
        // public int version { get; set; }
        // public string url { get; set; }
-        public int invoiceNumber { get; set; }
+        public long invoiceNumber { get; set; }
         public string invoiceDate { get; set; }
         public Customer customer { get; set; }
         //public int creditedInvoice { get; set; }
@@ -81,20 +81,20 @@ namespace TripleTexDataTransfer_Consumer_TripleTex.Invoice
 
     public class Currency
     {
-        public int id { get; set; }
+        public long id { get; set; }
        // public string url { get; set; }
         //public string isoCode { get { return "NOK"; } }
     }
 
     public class Customer
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     public class Order
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
@@ -102,7 +102,7 @@ namespace TripleTexDataTransfer_Consumer_TripleTex.Invoice
 
     public class OrderLine
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public int version { get; set; }
         public string url { get; set; }
         public Product product { get; set; }
@@ -140,19 +140,19 @@ namespace TripleTexDataTransfer_Consumer_TripleTex.Invoice
 
     public class Product
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     public class ProjectInvoiceDetail
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     public class Reminder
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
@@ -160,13 +160,13 @@ namespace TripleTexDataTransfer_Consumer_TripleTex.Invoice
 
     public class VatType
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     public class Voucher
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 

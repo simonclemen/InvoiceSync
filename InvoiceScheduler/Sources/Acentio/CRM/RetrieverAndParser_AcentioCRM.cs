@@ -40,7 +40,7 @@ namespace InvoiceScheduler_Consumer
         }
 
         internal async Task<CombinedDataSet> GetSalesOrders(InvoiceScheduler.Acentio.DB.CombinedDataSet data)
-        {
+         {
             var client = GetClient();
             var success = false;
             CombinedDataSet response = null;

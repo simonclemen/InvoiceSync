@@ -73,37 +73,37 @@ namespace TripleTexDataTransfer_Consumer_TripleTex.Order
     //2127893392
     public class PreliminaryInvoice
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     public class Contact
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     public class Currency
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     public class Customer
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     public class Order
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     public class OrderLine
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public int version { get; set; }
         public string url { get; set; }
         public Product product { get; set; }
@@ -135,20 +135,20 @@ namespace TripleTexDataTransfer_Consumer_TripleTex.Order
 
     public class OurContact
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     public class Product
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     
     public class VatType
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 

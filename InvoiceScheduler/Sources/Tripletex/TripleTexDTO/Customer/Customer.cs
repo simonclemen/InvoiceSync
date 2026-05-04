@@ -60,31 +60,31 @@ namespace TripleTexDataTransfer_Consumer_TripleTex.Customer
 
     public class Category
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     public class Currency
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     public class LedgerAccount
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     public class PhysicalAddress
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public string url { get; set; }
     }
 
     public class PostalAddress
     {
-        public int id { get; set; }
+        public long id { get; set; }
         public int version { get; set; }
         public string url { get; set; }
         public string addressLine1 { get; set; }

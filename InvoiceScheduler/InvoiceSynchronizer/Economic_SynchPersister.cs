@@ -313,6 +313,8 @@ namespace InvoiceScheduler_Consumer
 
             DateTime dt;
             target.notes.textLine1 = "";
+
+
             if (invoice.cAccruedStart != invoice.cAccruedEnd)
             {
                 if (DateTime.TryParse(invoice.cAccruedStart, out dt))
@@ -421,15 +423,18 @@ namespace InvoiceScheduler_Consumer
                 newline.vatRate = line.taxRate;
                 newline.sortKey = line.order;
 
-                if (invoice.cAccruedStart != invoice.cAccruedEnd)
+
+                var accruedstart = string.IsNullOrWhiteSpace(invoice.cCorrectedAccruedStart) ? invoice.cAccruedStart : invoice.cCorrectedAccruedStart;
+                var accruedend = string.IsNullOrWhiteSpace(invoice.cCorrectedAccruedEnd) ? invoice.cAccruedEnd : invoice.cCorrectedAccruedEnd;
+                if (accruedstart != accruedend)
                 {
                     DateTime dt;
-                    if (DateTime.TryParse(invoice.cAccruedStart, out dt))
+                    if (DateTime.TryParse(accruedstart, out dt))
                     {
                         if (newline.accrual == null) newline.accrual = new Economic.DraftInvoice.Accrual();
                         newline.accrual.startDate = dt;
                     }
-                    if (DateTime.TryParse(invoice.cAccruedEnd, out dt))
+                    if (DateTime.TryParse(accruedend, out dt))
                     {
                         if (newline.accrual == null) newline.accrual = new Economic.DraftInvoice.Accrual();
                         newline.accrual.endDate = dt;
@@ -590,15 +595,18 @@ namespace InvoiceScheduler_Consumer
                 newline.vatRate = line.taxRate;
                 newline.sortKey = line.order;
 
-                if (sourceinvoice.cAccruedStart != sourceinvoice.cAccruedEnd)
+                var accruedstart = string.IsNullOrWhiteSpace(sourceinvoice.cCorrectedAccruedStart) ? sourceinvoice.cAccruedStart : sourceinvoice.cCorrectedAccruedStart;
+                var accruedend = string.IsNullOrWhiteSpace(sourceinvoice.cCorrectedAccruedEnd) ? sourceinvoice.cAccruedEnd : sourceinvoice.cCorrectedAccruedEnd;
+
+                if (accruedstart != accruedend)
                 {
                     DateTime dt;
-                    if (DateTime.TryParse(sourceinvoice.cAccruedStart, out dt))
+                    if (DateTime.TryParse(accruedstart, out dt))
                     {
                         if (newline.accrual == null) newline.accrual = new Economic.DraftInvoice.Accrual();
                         newline.accrual.startDate = dt;
                     }
-                    if (DateTime.TryParse(sourceinvoice.cAccruedEnd, out dt))
+                    if (DateTime.TryParse(accruedend, out dt))
                     {
                         if (newline.accrual == null) newline.accrual = new Economic.DraftInvoice.Accrual();
                         newline.accrual.endDate = dt;

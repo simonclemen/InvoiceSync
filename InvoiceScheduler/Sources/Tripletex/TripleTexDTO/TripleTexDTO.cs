@@ -51,7 +51,7 @@ namespace TripleTexDataTransfer_Consumer_TripleTex
     }
     public abstract class GenericDataResponse
     {
-        public int id { get; set; }
+        public long id { get; set; }
       //  public string Hash { get; set; }
        // public string Json { get; internal set; }
 

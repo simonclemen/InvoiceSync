@@ -144,7 +144,7 @@ namespace InvoiceScheduler_Consumer
                 var response = await tripletex_client.PostAsync(url, content);
                 var jsonResponse = await response.Content.ReadAsStringAsync();
                 var responsedocument = JsonSerializer.Deserialize<Tripletex.Invoice.InvoiceResponseWrapper>(jsonResponse);
-                var id = (responsedocument == null ? "0" : responsedocument.value.id.ToString());
+                var id = (responsedocument == null || responsedocument.value == null ? "0" : responsedocument.value.id.ToString());
 
                 if (response.IsSuccessStatusCode)
                 {                    
@@ -335,7 +335,7 @@ namespace InvoiceScheduler_Consumer
             }
         }
 
-        private async Task<Tripletex.Order.OrderLineResponseWrapper> GetOrderLine(int id, HttpClient tripletex_client)
+        private async Task<Tripletex.Order.OrderLineResponseWrapper> GetOrderLine(long id, HttpClient tripletex_client)
         {
             var url = "order/orderline/" + id + "?fields=*";
             var response = await tripletex_client.GetAsync(url);
@@ -568,7 +568,7 @@ namespace InvoiceScheduler_Consumer
             }
         }
 
-        private async Task SaveOrderLines(int id, List<Tripletex.Order.OrderLine> orderLines, TripletexInvoiceWrapper syncresponse, HttpClient tripletex_client)
+        private async Task SaveOrderLines(long id, List<Tripletex.Order.OrderLine> orderLines, TripletexInvoiceWrapper syncresponse, HttpClient tripletex_client)
         {
             foreach (var ol in orderLines)
             {
@@ -901,7 +901,7 @@ namespace InvoiceScheduler_Consumer
         {
             target.orderLines = new List<Tripletex.Order.OrderLine>();
             var invoiceitems = data_acentio.InvoiceItems.list.Where(r => r.invoiceId == invoice.id).ToList();
-            foreach (var line in invoiceitems)
+            foreach (var line in invoiceitems.OrderBy(r=>r.order))
             {
                 var newline =  new Tripletex.Order.OrderLine();
                 Tripletex.Product.ProductResponseData tripletex_product = null;
